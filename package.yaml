@@ -56,3 +56,4 @@ library:
     - FlexibleInstances
 
   exposed-modules:
+    - Auth
