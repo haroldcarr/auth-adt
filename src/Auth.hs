@@ -77,14 +77,10 @@ type Proof a = [ProofElem a]
 data Side = L | R deriving (Show, Eq)
 
 data ProofElem a = 
-    ProofNode 
+    ProofElem 
         { side :: Side
         , leftHash :: Hash
         , rightHash :: Hash 
-        }
-    | ProofLeaf 
-        { elem :: a
-        , leafHash :: Hash
         }
     deriving (Show, Eq)
 
@@ -95,13 +91,13 @@ constructProof' path (AuthTip _ a) item
 constructProof' path (AuthBin _ l r) item = lpath ++ rpath
     where
         proofItem s n1@AuthBin{} n2@AuthBin{} = 
-            ProofNode s (binHash l) (binHash r)
+            ProofElem s (binHash l) (binHash r)
         proofItem s n1@AuthBin{} n2@AuthTip{} =
-            ProofNode s (binHash l) (tipHash r)
+            ProofElem s (binHash l) (tipHash r)
         proofItem s n1@AuthTip{} n2@AuthBin{} =
-            ProofNode s (tipHash l) (binHash r)
+            ProofElem s (tipHash l) (binHash r)
         proofItem s n1@AuthTip{} n2@AuthTip{} =
-            ProofNode s (tipHash l) (tipHash r)
+            ProofElem s (tipHash l) (tipHash r)
         lpath = constructProof' (proofItem L l r : path) l item
         rpath = constructProof' (proofItem R l r : path) r item
 
