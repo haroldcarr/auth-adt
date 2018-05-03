@@ -18,6 +18,7 @@ dependencies:
   - bytestring
   - random
   - memory
+  - merkle-tree 
 
 library:
   source-dirs: src

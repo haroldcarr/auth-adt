@@ -1,7 +1,10 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -40,11 +43,67 @@ emptyHash = Hash digest
 showHash :: Show a => a -> ByteString
 showHash = toS . show
 
-data Proof = Proof [Hash]
+getHash :: Hash -> ByteString
+getHash = BA.convert . rawHash
 
-class Hashable a => Authable a where
-  auth :: a -> Proof
-  unauth :: Proof -> a
+data AuthTree a
+  = AuthTip { tipHash :: Hash, tipValue :: a }
+  | AuthBin { binHash :: Hash, lAuthTree :: (AuthTree a), rAuthTree :: (AuthTree a) }
+  deriving (Show, Functor, Generic)
+
+data Tree a
+  = Tip a
+  | Bin (Tree a) (Tree a)
+  deriving (Show, Functor, Generic)
+
+hashTree :: Hashable a => Tree a -> Hash
+hashTree (Bin l r) = toHash (getHash (hashTree l) <> getHash (hashTree r))
+hashTree (Tip a) = toHash a
+
+toAuthTree :: Hashable a => Tree a -> AuthTree a
+toAuthTree (Bin l r) = 
+    AuthBin (hashTree (Bin l r)) (toAuthTree l) (toAuthTree r)  
+toAuthTree (Tip a) =
+    AuthTip (hashTree (Tip a)) a
+
+exampleTree :: Tree Int
+exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
+
+constructProof :: (Hashable a, Eq a) => AuthTree a -> a -> Proof a
+constructProof = constructProof' []
+
+type Proof a = [ProofElem a]
+ 
+data Side = L | R deriving (Show, Eq)
+
+data ProofElem a = 
+    ProofNode 
+        { side :: Side
+        , leftHash :: Hash
+        , rightHash :: Hash 
+        }
+    | ProofLeaf 
+        { elem :: a
+        , leafHash :: Hash
+        }
+    deriving (Show, Eq)
+
+constructProof' :: (Hashable a, Eq a) => Proof a -> AuthTree a -> a -> Proof a
+constructProof' path (AuthTip _ a) item 
+    | a == item = path
+    | otherwise = []
+constructProof' path (AuthBin _ l r) item = lpath ++ rpath
+    where
+        proofItem s n1@AuthBin{} n2@AuthBin{} = 
+            ProofNode s (binHash l) (binHash r)
+        proofItem s n1@AuthBin{} n2@AuthTip{} =
+            ProofNode s (binHash l) (tipHash r)
+        proofItem s n1@AuthTip{} n2@AuthBin{} =
+            ProofNode s (tipHash l) (binHash r)
+        proofItem s n1@AuthTip{} n2@AuthTip{} =
+            ProofNode s (tipHash l) (tipHash r)
+        lpath = constructProof' (proofItem L l r : path) l item
+        rpath = constructProof' (proofItem R l r : path) r item
 
 -------------------------------------------------------------------------------
 -- Hashing
@@ -63,8 +122,6 @@ class Show a => Hashable a where
   -- | Prefix the hash input with custom data to distinguish unique types
   prefix :: a -> ByteString
   prefix = const mempty
-
-class GHashable a where
 
 class GHashable' f where
   gtoHash :: f a -> Hash

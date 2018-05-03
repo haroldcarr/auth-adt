@@ -32,6 +32,8 @@ resolver: lts-11.1
 #  - auto-update
 #  - wai
 #
+extra-deps:
+- merkle-tree-0.1.0 
 # A package marked 'extra-dep: true' will only be built if demanded by a
 # non-dependency (i.e. a user package), and its test suites and benchmarks
 # will not be run. This is useful for tweaking upstream packages.
