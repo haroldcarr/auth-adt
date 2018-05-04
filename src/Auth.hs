@@ -112,7 +112,7 @@ data AuthT a = AuthT Hash a | AuthTEmpty
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
     default prove :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> a -> Proof
-    prove a item = gProve [] (from1 a) item
+    prove a item = reverse $ gProve [] (from1 a) item
 
     prove' :: forall a. (Hashable a, Eq a) => Proof -> f a -> a -> Proof
     default prove' 
@@ -148,6 +148,7 @@ instance GAuthable U1 where
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
     gProveHash (M1 a) = gProveHash a
+
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gProve path (L1 a) = gProve path a
     gProve path (R1 a) = gProve path a
@@ -162,6 +163,7 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
     
     gProveHash (a :*: b) = 
         toHash (getHash (gProveHash a) <> getHash (gProveHash b))
+
 -------------------------------------------------------------------------------
 -- Hashing
 -------------------------------------------------------------------------------
