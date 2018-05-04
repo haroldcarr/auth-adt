@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Auth where
 
@@ -55,7 +56,7 @@ data AuthTree a
 data Tree a
   = Tip a
   | Bin (Tree a) (Tree a)
-  deriving (Show, Functor, Generic)
+  deriving (Show, Eq, Functor, Generic, Authable)
 
 -- hashTree :: Hashable a => Tree a -> Hash
 -- hashTree (Bin l r) = toHash (getHash (hashTree l) <> getHash (hashTree r))
@@ -105,30 +106,40 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
         rpath = constructProof' (proofItem R l r : path) r item
 
 class (Hashable a, Eq a) => Authable a where
-    prove :: a -> Proof
-    default prove :: (Generic a, GAuthable (Rep a)) => a -> Proof
-    prove a = gProve (from a)
+--    prove :: a -> Proof
+--    default prove :: (Generic a, GAuthable (Rep a)) => a -> Proof
+--    prove a = gProve (from a)
+    auth :: a -> AuthTree [Char] 
+    default auth :: (Generic a, GAuthable (Rep a)) => a -> AuthTree [Char]
+    auth a = gAuth (from a)
 
 class GAuthable f where
-    gProve :: f a -> Proof
+--    gProve :: f a -> Proof
+    gAuth :: f a -> AuthTree [Char]
 
 instance GAuthable U1 where
-    gProve _ = [ProofLeaf emptyHash]
+--    gProve _ = [ProofLeaf emptyHash]
+    gAuth _ = AuthTip emptyHash mempty
 
 instance (Hashable a) => GAuthable (K1 i a) where
-    gProve (K1 a) = [ProofLeaf (toHash a)]
+--    gProve (K1 a) = [ProofLeaf (toHash a)]
+    gAuth (K1 a) = AuthTip (toHash a) mempty
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
-    gProve (M1 a) = gProve a
+--    gProve (M1 a) = gProve a
+    gAuth (M1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
-    gProve (L1 a) = gProve a
-    gProve (R1 a) = gProve a
+--    gProve (L1 a) = gProve a
+--    gProve (R1 a) = gProve a
+    gAuth (L1 a) = gAuth a
+    gAuth (R1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
-    gProve(a :*: b) = gProve a ++ gProve b 
+--    gProve(a :*: b) = gProve a ++ gProve b 
     -- [ProofElem L (head : gProve a : gProve b]
-
+    gAuth (a :*: b) = AuthBin emptyHash (gAuth a) (gAuth b)
+    -- (toHash (getHash (toHash l) <> getHash (toHash r))) 
 -------------------------------------------------------------------------------
 -- Hashing
 -------------------------------------------------------------------------------
