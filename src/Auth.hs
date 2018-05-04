@@ -7,6 +7,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PolyKinds #-}
 
 module Auth where
 
@@ -56,35 +57,37 @@ data Tree a
   | Bin (Tree a) (Tree a)
   deriving (Show, Functor, Generic)
 
-hashTree :: Hashable a => Tree a -> Hash
-hashTree (Bin l r) = toHash (getHash (hashTree l) <> getHash (hashTree r))
-hashTree (Tip a) = toHash a
+-- hashTree :: Hashable a => Tree a -> Hash
+-- hashTree (Bin l r) = toHash (getHash (hashTree l) <> getHash (hashTree r))
+-- hashTree (Tip a) = toHash a
 
 toAuthTree :: Hashable a => Tree a -> AuthTree a
 toAuthTree (Bin l r) = 
-    AuthBin (hashTree (Bin l r)) (toAuthTree l) (toAuthTree r)  
+    AuthBin (toHash (Bin l r)) (toAuthTree l) (toAuthTree r)  
 toAuthTree (Tip a) =
-    AuthTip (hashTree (Tip a)) a
+    AuthTip (toHash (Tip a)) a
 
 exampleTree :: Tree Int
 exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
 
-constructProof :: (Hashable a, Eq a) => AuthTree a -> a -> Proof a
+constructProof :: (Hashable a, Eq a) => AuthTree a -> a -> Proof
 constructProof = constructProof' []
 
-type Proof a = [ProofElem a]
+type Proof = [ProofElem]
  
 data Side = L | R deriving (Show, Eq)
 
-data ProofElem a = 
-    ProofElem 
+data ProofElem
+    = ProofElem 
         { side :: Side
         , leftHash :: Hash
         , rightHash :: Hash 
         }
+    | ProofLeaf
+        { leafHash :: Hash }
     deriving (Show, Eq)
 
-constructProof' :: (Hashable a, Eq a) => Proof a -> AuthTree a -> a -> Proof a
+constructProof' :: (Hashable a, Eq a) => Proof -> AuthTree a -> a -> Proof
 constructProof' path (AuthTip _ a) item 
     | a == item = path
     | otherwise = []
@@ -100,6 +103,31 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
             ProofElem s (tipHash l) (tipHash r)
         lpath = constructProof' (proofItem L l r : path) l item
         rpath = constructProof' (proofItem R l r : path) r item
+
+class (Hashable a, Eq a) => Authable a where
+    prove :: a -> Proof
+    default prove :: (Generic a, GAuthable (Rep a)) => a -> Proof
+    prove a = gProve (from a)
+
+class GAuthable f where
+    gProve :: f a -> Proof
+
+instance GAuthable U1 where
+    gProve _ = [ProofLeaf emptyHash]
+
+instance (Hashable a) => GAuthable (K1 i a) where
+    gProve (K1 a) = [ProofLeaf (toHash a)]
+
+instance (GAuthable a) => GAuthable (M1 i c a) where
+    gProve (M1 a) = gProve a
+
+instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
+    gProve (L1 a) = gProve a
+    gProve (R1 a) = gProve a
+
+instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
+    gProve(a :*: b) = gProve a ++ gProve b 
+    -- [ProofElem L (head : gProve a : gProve b]
 
 -------------------------------------------------------------------------------
 -- Hashing
@@ -157,6 +185,10 @@ instance Hashable Int where
 
 instance Hashable Bool where
   toHash = Hash . hash . showHash
+
+instance (Hashable a) => Hashable (Tree a) where
+  toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
+  toHash (Tip a) = toHash a
 
 instance (Hashable a, Hashable b) => Hashable (a,b)
 
