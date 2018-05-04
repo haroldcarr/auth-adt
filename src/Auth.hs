@@ -123,32 +123,45 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
+    proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
+    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash 
+    proveHash a = gProveHash (from1 a)
+
 class GAuthable f where
     gProve :: (Hashable a, Eq a) => Proof -> f a -> a -> Proof
+    gProveHash :: (Hashable a, Eq a) => f a -> Hash
 
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
+    gProveHash (Rec1 f) = proveHash f 
 
 instance GAuthable Par1 where
     gProve path (Par1 a) item 
         | item == a = path
-        | otherwise = [] 
+        | otherwise = []
+    gProveHash (Par1 a) = toHash a
 
 instance GAuthable U1 where
     gProve _ _ _ = []
+    gProveHash _  = emptyHash
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
-
+    gProveHash (M1 a) = gProveHash a
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gProve path (L1 a) = gProve path a
     gProve path (R1 a) = gProve path a
 
-instance (GAuthable a, GAuthable b, GHashable' a, GHashable' b) => GAuthable (a :*: b) where
-    gProve path (a :*: b) item 
-        =   gProve (ProofElem L emptyHash emptyHash : path) a item 
-        ++  gProve (ProofElem R emptyHash emptyHash : path) b item
+    gProveHash (L1 a) = gProveHash a
+    gProveHash (R1 a) = gProveHash a
 
+instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
+    gProve path (a :*: b) item 
+        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item 
+        ++  gProve (ProofElem R (gProveHash a) (gProveHash b) : path) b item
+    
+    gProveHash (a :*: b) = 
+        toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 -------------------------------------------------------------------------------
 -- Hashing
 -------------------------------------------------------------------------------
