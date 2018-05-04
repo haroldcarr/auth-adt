@@ -1,18 +1,13 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Auth where
 
@@ -29,7 +24,7 @@ import qualified Data.ByteArray.Encoding as BA
 import GHC.Generics
 
 newtype Hash = Hash { rawHash :: Digest SHA3_256 }
-  deriving (Eq, Ord, Show, BA.ByteArrayAccess)
+  deriving (Eq, Ord, Show)
 
 -- sha256 hash
 sha256 :: ByteString -> Hash
@@ -115,11 +110,11 @@ class (Functor f) => Authable f where
     prove a item = gProve [] (from1 a) item
 
     prove' :: forall a. (Hashable a, Eq a) => Proof -> f a -> a -> Proof
-    default prove' 
-        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) 
+    default prove'
+        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => Proof
         -> f a
-        -> a 
+        -> a
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
@@ -130,9 +125,9 @@ instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
 
 instance GAuthable Par1 where
-    gProve path (Par1 a) item 
+    gProve path (Par1 a) item
         | item == a = path
-        | otherwise = [] 
+        | otherwise = []
 
 instance GAuthable U1 where
     gProve _ _ _ = []
@@ -144,9 +139,9 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gProve path (L1 a) = gProve path a
     gProve path (R1 a) = gProve path a
 
-instance (GAuthable a, GAuthable b, GHashable' a, GHashable' b) => GAuthable (a :*: b) where
-    gProve path (a :*: b) item 
-        =   gProve (ProofElem L emptyHash emptyHash : path) a item 
+instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
+    gProve path (a :*: b) item
+        =   gProve (ProofElem L emptyHash emptyHash : path) a item
         ++  gProve (ProofElem R emptyHash emptyHash : path) b item
 
 -------------------------------------------------------------------------------
