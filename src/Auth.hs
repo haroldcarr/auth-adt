@@ -80,15 +80,11 @@ type Proof = [ProofElem]
 
 data Side = L | R deriving (Show, Eq)
 
-data ProofElem
-    = ProofElem
-        { side :: Side
-        , leftHash :: Hash
-        , rightHash :: Hash
-        }
-    | ProofLeaf
-        { leafHash :: Hash }
-    deriving (Show, Eq)
+data ProofElem = ProofElem
+    { side :: Side
+    , leftHash :: Hash
+    , rightHash :: Hash
+    } deriving (Show, Eq)
 
 constructProof' :: (Hashable a, Eq a) => Proof -> AuthTree a -> a -> Proof
 constructProof' path (AuthTip _ a) item
@@ -108,6 +104,25 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
         rpath = constructProof' (proofItem R l r : path) r item
 
 data AuthT a = AuthT Hash a | AuthTEmpty
+
+type Root = Hash
+
+verify :: Hashable a => Root -> Proof -> a -> Bool
+verify _ [] _ = False
+verify root [a] item =
+    if root /= toHash a 
+        then False
+        else case side a of
+            L -> hashItem == leftHash a
+            R -> hashItem == rightHash a
+    where
+        hashItem = toHash item
+verify root (a:as) item =
+    if root /= toHash a
+        then False
+        else case side a of
+            L -> verify (leftHash a) as item
+            R -> verify (rightHash a) as item
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
@@ -228,6 +243,9 @@ instance Hashable Bool where
 instance (Hashable a) => Hashable (Tree a) where
   toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
   toHash (Tip a) = toHash a
+
+instance Hashable ProofElem where
+  toHash (ProofElem s l r) = toHash (getHash l <> getHash r)
 
 instance (Hashable a, Hashable b) => Hashable (a,b)
 
