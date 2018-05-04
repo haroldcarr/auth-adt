@@ -1,18 +1,13 @@
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Auth 
     ( verify
@@ -73,11 +68,11 @@ class (Functor f) => Authable f where
     prove a item = reverse $ gProve [] (from1 a) item
 
     prove' :: forall a. (Hashable a, Eq a) => Proof -> f a -> a -> Proof
-    default prove' 
-        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) 
+    default prove'
+        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => Proof
         -> f a
-        -> a 
+        -> a
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
@@ -94,7 +89,7 @@ instance (Authable f) => GAuthable (Rec1 f) where
     gProveHash (Rec1 f) = proveHash f 
 
 instance GAuthable Par1 where
-    gProve path (Par1 a) item 
+    gProve path (Par1 a) item
         | item == a = path
         | otherwise = []
     gProveHash (Par1 a) = toHash a
