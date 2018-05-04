@@ -7,24 +7,32 @@ import Protolude hiding (Hashable)
 import Auth
 import Hash
 
-data AuthTree a
-  = AuthTip { tipHash :: Hash, tipValue :: a }
-  | AuthBin { binHash :: Hash, lAuthTree :: (AuthTree a), rAuthTree :: (AuthTree a) }
-  deriving (Show, Functor, Generic)
-
 data Tree a
   = Tip a
   | Bin (Tree a) (Tree a)
   deriving (Show, Eq, Functor, Generic, Generic1, Authable)
+
+instance (Hashable a) => Hashable (Tree a) where
+  toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
+  toHash (Tip a) = toHash a
+
+exampleTree :: Tree Int
+exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
+
+----------------------------------------
+-- Non generic example
+----------------------------------------
+
+data AuthTree a
+  = AuthTip { tipHash :: Hash, tipValue :: a }
+  | AuthBin { binHash :: Hash, lAuthTree :: (AuthTree a), rAuthTree :: (AuthTree a) }
+  deriving (Show, Functor, Generic)
 
 toAuthTree :: Hashable a => Tree a -> AuthTree a
 toAuthTree (Bin l r) =
     AuthBin (toHash (Bin l r)) (toAuthTree l) (toAuthTree r)
 toAuthTree (Tip a) =
     AuthTip (toHash (Tip a)) a
-
-exampleTree :: Tree Int
-exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
 
 constructProof :: (Hashable a, Eq a) => AuthTree a -> a -> Proof
 constructProof = constructProof' []
@@ -46,8 +54,5 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
         lpath = constructProof' (proofItem L l r : path) l item
         rpath = constructProof' (proofItem R l r : path) r item
 
-instance (Hashable a) => Hashable (Tree a) where
-  toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
-  toHash (Tip a) = toHash a
 
 
