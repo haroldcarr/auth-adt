@@ -107,22 +107,18 @@ data AuthT a = AuthT Hash a | AuthTEmpty
 
 type Root = Hash
 
-verify :: Hashable a => Root -> Proof -> a -> Bool
+verify :: Hashable a => Hash -> Proof -> a -> Bool
 verify _ [] _ = False
-verify root [a] item =
-    if root /= toHash a 
-        then False
-        else case side a of
-            L -> hashItem == leftHash a
-            R -> hashItem == rightHash a
+verify parentHash (proof:proofs) a
+    | parentHash /= toHash proof = False
+    | null proofs = case side proof of
+        L -> hashA == leftHash proof
+        R -> hashA == rightHash proof
+    | otherwise = case side proof of
+        L -> verify (leftHash proof) proofs a
+        R -> verify (rightHash proof) proofs a
     where
-        hashItem = toHash item
-verify root (a:as) item =
-    if root /= toHash a
-        then False
-        else case side a of
-            L -> verify (leftHash a) as item
-            R -> verify (rightHash a) as item
+        hashA = toHash a
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
