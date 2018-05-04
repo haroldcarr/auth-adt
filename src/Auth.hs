@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -8,9 +9,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Auth where
 
@@ -23,6 +25,8 @@ import Crypto.Hash.Algorithms
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BA
+
+import GHC.Generics
 
 newtype Hash = Hash { rawHash :: Digest SHA3_256 }
   deriving (Eq, Ord, Show, BA.ByteArrayAccess)
@@ -58,11 +62,11 @@ data AuthTree a
 data Tree a
   = Tip a
   | Bin (Tree a) (Tree a)
-  deriving (Show, Eq, Functor, Generic, Authable)
+  deriving (Show, Eq, Functor, Generic, Generic1, Authable)
 
 toAuthTree :: Hashable a => Tree a -> AuthTree a
-toAuthTree (Bin l r) = 
-    AuthBin (toHash (Bin l r)) (toAuthTree l) (toAuthTree r)  
+toAuthTree (Bin l r) =
+    AuthBin (toHash (Bin l r)) (toAuthTree l) (toAuthTree r)
 toAuthTree (Tip a) =
     AuthTip (toHash (Tip a)) a
 
@@ -73,26 +77,26 @@ constructProof :: (Hashable a, Eq a) => AuthTree a -> a -> Proof
 constructProof = constructProof' []
 
 type Proof = [ProofElem]
- 
+
 data Side = L | R deriving (Show, Eq)
 
 data ProofElem
-    = ProofElem 
+    = ProofElem
         { side :: Side
         , leftHash :: Hash
-        , rightHash :: Hash 
+        , rightHash :: Hash
         }
     | ProofLeaf
         { leafHash :: Hash }
     deriving (Show, Eq)
 
 constructProof' :: (Hashable a, Eq a) => Proof -> AuthTree a -> a -> Proof
-constructProof' path (AuthTip _ a) item 
+constructProof' path (AuthTip _ a) item
     | a == item = path
     | otherwise = []
 constructProof' path (AuthBin _ l r) item = lpath ++ rpath
     where
-        proofItem s n1@AuthBin{} n2@AuthBin{} = 
+        proofItem s n1@AuthBin{} n2@AuthBin{} =
             ProofElem s (binHash l) (binHash r)
         proofItem s n1@AuthBin{} n2@AuthTip{} =
             ProofElem s (binHash l) (tipHash r)
@@ -105,46 +109,33 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
 
 data AuthT a = AuthT Hash a | AuthTEmpty
 
-class (Hashable a, Eq a) => Authable a where
-    prove :: a -> a -> Proof
-    default prove :: (Generic a, GAuthable (Rep a)) => a -> a -> Proof
-    prove a item = gProve [] (from a) item 
---    auth :: a -> AuthT 
---    default auth :: (Generic a, GAuthable (Rep a)) => a -> AuthT
---    auth a = gAuth (from a)
+class (Functor f) => Authable f where
+    prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
+    default prove :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> a -> Proof
+    prove a item = gProve [] (from1 a) item
 
 class GAuthable f where
-    gProve :: Eq a => Proof -> f a -> a -> Proof
---    gAuth :: f a -> AuthT
+    gProve :: forall a. Proof -> f a -> a -> Proof
+
+instance GAuthable (Rec1 f) where
+    gProve path (Rec1 f) = undefined
+
+instance GAuthable Par1 where
+    gProve path (Par1 f) = undefined
 
 instance GAuthable U1 where
     gProve _ _ _ = []
---    gAuth _ = undefined 
-    -- AuthT emptyHash mempty
-
-instance (Hashable a, Eq a) => GAuthable (K1 i a) where
-    gProve :: Eq a => Proof -> K1 i a a -> a -> Proof
-    gProve path (K1 a) item 
-        | item == a = path
-        | otherwise = []
-        --[ProofLeaf (toHash a)]
---    gAuth (K1 a) = AuthT (toHash a) a 
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
---    gAuth (M1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gProve path (L1 a) = gProve path a
     gProve path (R1 a) = gProve path a
---    gAuth (L1 a) = gAuth a
---    gAuth (R1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b, GHashable' a, GHashable' b) => GAuthable (a :*: b) where
-    gProve path (a :*: b) item = gProve path a item ++ gProve path b item 
-    -- [ProofElem L (head : gProve a : gProve b]
---    gAuth (a :*: b) = AuthT (toHash (gtoBS a <> gtoBS b))            (gAuth a) (gAuth b)
-    -- (toHash (getHash (toHash l) <> getHash (toHash r))) 
+    gProve path (a :*: b) item = gProve path a item ++ gProve path b item
+
 -------------------------------------------------------------------------------
 -- Hashing
 -------------------------------------------------------------------------------
@@ -169,6 +160,10 @@ class GHashable' f where
 
 instance GHashable' U1 where
   gtoHash _ = emptyHash
+  gtoBS _ = ""
+
+instance GHashable' (Rec1 f) where
+  gtoHash (Rec1 f) = emptyHash
   gtoBS _ = ""
 
 instance (Hashable c) => GHashable' (K1 i c) where

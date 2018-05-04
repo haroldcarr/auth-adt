@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8b134d40921e7b92a41bdcea03efaa15031c76c3e2da08418d5f302424e8e0c4
+-- hash: ca98fce5e3f748c69df624ac63b7be2782f1c5d486bde323a049c11e17a3c83b
 
 name:           auth-adt
 version:        0.1.0
@@ -34,6 +34,7 @@ library
     , bytestring
     , cryptonite
     , memory
+    , merkle-tree
     , protolude >=0.2
     , random
   exposed-modules:
