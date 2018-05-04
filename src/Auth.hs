@@ -6,9 +6,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Auth where
 
@@ -58,10 +60,6 @@ data Tree a
   | Bin (Tree a) (Tree a)
   deriving (Show, Eq, Functor, Generic, Authable)
 
--- hashTree :: Hashable a => Tree a -> Hash
--- hashTree (Bin l r) = toHash (getHash (hashTree l) <> getHash (hashTree r))
--- hashTree (Tip a) = toHash a
-
 toAuthTree :: Hashable a => Tree a -> AuthTree a
 toAuthTree (Bin l r) = 
     AuthBin (toHash (Bin l r)) (toAuthTree l) (toAuthTree r)  
@@ -105,40 +103,47 @@ constructProof' path (AuthBin _ l r) item = lpath ++ rpath
         lpath = constructProof' (proofItem L l r : path) l item
         rpath = constructProof' (proofItem R l r : path) r item
 
+data AuthT a = AuthT Hash a | AuthTEmpty
+
 class (Hashable a, Eq a) => Authable a where
---    prove :: a -> Proof
---    default prove :: (Generic a, GAuthable (Rep a)) => a -> Proof
---    prove a = gProve (from a)
-    auth :: a -> AuthTree [Char] 
-    default auth :: (Generic a, GAuthable (Rep a)) => a -> AuthTree [Char]
-    auth a = gAuth (from a)
+    prove :: a -> a -> Proof
+    default prove :: (Generic a, GAuthable (Rep a)) => a -> a -> Proof
+    prove a item = gProve [] (from a) item 
+--    auth :: a -> AuthT 
+--    default auth :: (Generic a, GAuthable (Rep a)) => a -> AuthT
+--    auth a = gAuth (from a)
 
 class GAuthable f where
---    gProve :: f a -> Proof
-    gAuth :: f a -> AuthTree [Char]
+    gProve :: Eq a => Proof -> f a -> a -> Proof
+--    gAuth :: f a -> AuthT
 
 instance GAuthable U1 where
---    gProve _ = [ProofLeaf emptyHash]
-    gAuth _ = AuthTip emptyHash mempty
+    gProve _ _ _ = []
+--    gAuth _ = undefined 
+    -- AuthT emptyHash mempty
 
-instance (Hashable a) => GAuthable (K1 i a) where
---    gProve (K1 a) = [ProofLeaf (toHash a)]
-    gAuth (K1 a) = AuthTip (toHash a) mempty
+instance (Hashable a, Eq a) => GAuthable (K1 i a) where
+    gProve :: Eq a => Proof -> K1 i a a -> a -> Proof
+    gProve path (K1 a) item 
+        | item == a = path
+        | otherwise = []
+        --[ProofLeaf (toHash a)]
+--    gAuth (K1 a) = AuthT (toHash a) a 
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
---    gProve (M1 a) = gProve a
-    gAuth (M1 a) = gAuth a
+    gProve path (M1 a) = gProve path a
+--    gAuth (M1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
---    gProve (L1 a) = gProve a
---    gProve (R1 a) = gProve a
-    gAuth (L1 a) = gAuth a
-    gAuth (R1 a) = gAuth a
+    gProve path (L1 a) = gProve path a
+    gProve path (R1 a) = gProve path a
+--    gAuth (L1 a) = gAuth a
+--    gAuth (R1 a) = gAuth a
 
-instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
---    gProve(a :*: b) = gProve a ++ gProve b 
+instance (GAuthable a, GAuthable b, GHashable' a, GHashable' b) => GAuthable (a :*: b) where
+    gProve path (a :*: b) item = gProve path a item ++ gProve path b item 
     -- [ProofElem L (head : gProve a : gProve b]
-    gAuth (a :*: b) = AuthBin emptyHash (gAuth a) (gAuth b)
+--    gAuth (a :*: b) = AuthT (toHash (gtoBS a <> gtoBS b))            (gAuth a) (gAuth b)
     -- (toHash (getHash (toHash l) <> getHash (toHash r))) 
 -------------------------------------------------------------------------------
 -- Hashing
