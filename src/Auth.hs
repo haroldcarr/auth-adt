@@ -11,6 +11,7 @@
 
 module Auth 
     ( verifyProof
+    , fetch
     , Authable(..)
     , Proof
     , ProofElem(..)
@@ -41,16 +42,10 @@ data ProofElem = ProofElem
     , rightHash :: Hash
     } deriving (Show, Eq)
 
-data AuthElem a
-    = AuthElem 
-        { authElemHash :: Hash
-        , lAuthChild :: AuthElem a
-        , rAuthChild :: AuthElem a
-        }
-    | AuthLeaf 
-        { authLeafHash :: Hash
-        , authValue :: Maybe a
-        }
+type AuthTree a = (Hash, Tree a) 
+data Tree a
+    = Bin (AuthTree a) (AuthTree a)
+    | Tip (Maybe a) 
     deriving (Show, Eq)
 
 -- | The verifier begins with the proof stream and
@@ -72,6 +67,27 @@ verifyProof parentHash (proof:proofs) a
         L -> verifyProof (leftHash proof) proofs a
         R -> verifyProof (rightHash proof) proofs a
 
+fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a
+fetch idx authTree = do
+    tree <- unAuth authTree
+    case (idx, tree) of
+        ([], Tip v) -> v
+        (L : idx', Bin l _) -> fetch idx' l
+        (R : idx', Bin _ r) -> fetch idx' r
+        _ -> Nothing
+        
+-- | unAuth is a private function
+unAuth :: Hashable a => AuthTree a -> Maybe (Tree a)
+unAuth (h, t@(Bin l r)) = 
+    if h == toHash (getHash (fst l) <> getHash (fst r))
+        then Just t
+        else Nothing
+unAuth (h, t@(Tip valueM)) = do
+    v <- valueM
+    if h == toHash v
+        then Just t
+        else Nothing
+
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
     default prove 
@@ -90,10 +106,10 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
-    auth :: forall a. (Hashable a, Eq a) => f a -> AuthElem a
+    auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
     default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
-        -> AuthElem a
+        -> AuthTree a
     auth f = gAuth (from1 f)
 
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
@@ -103,7 +119,7 @@ class (Functor f) => Authable f where
 class GAuthable f where
     gProve :: (Hashable a, Eq a) => Proof -> f a -> a -> Proof
     gProveHash :: (Hashable a, Eq a) => f a -> Hash
-    gAuth :: (Hashable a, Eq a) => f a -> AuthElem a
+    gAuth :: (Hashable a, Eq a) => f a -> AuthTree a
 
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
@@ -115,12 +131,12 @@ instance GAuthable Par1 where
         | item == a = path
         | otherwise = []
     gProveHash (Par1 a) = toHash a
-    gAuth (Par1 a) = AuthLeaf (toHash a) (Just a)
+    gAuth (Par1 a) = (toHash a, Tip (Just a))
 
 instance GAuthable U1 where
     gProve _ _ _ = []
     gProveHash _  = emptyHash
-    gAuth _ = AuthLeaf emptyHash Nothing
+    gAuth _ = (emptyHash, Tip Nothing)
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
@@ -146,7 +162,9 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
         toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 
     gAuth (a :*: b) = 
-        AuthElem (gProveHash (a :*: b)) (gAuth a) (gAuth b) 
+        (gProveHash (a :*: b)
+        , Bin (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
+        )
 
 instance Hashable ProofElem where
     toHash (ProofElem s l r) = toHash (getHash l <> getHash r)
