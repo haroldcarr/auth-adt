@@ -10,7 +10,7 @@
 {-# LANGUAGE InstanceSigs #-}
 
 module Auth 
-    ( verify
+    ( verifyProof
     , Authable(..)
     , Proof
     , ProofElem(..)
@@ -61,16 +61,16 @@ data AuthElem a
 -- the parent hash that compares with the hash of the second element
 -- until it gets to the last element of the proof.
 -- The verifier then ...
-verify :: Hashable a => Hash -> Proof -> a -> Bool
-verify _ [] _ = False
-verify parentHash (proof:proofs) a
+verifyProof :: Hashable a => Hash -> Proof -> a -> Bool
+verifyProof _ [] _ = False
+verifyProof parentHash (proof:proofs) a
     | parentHash /= toHash proof = False
     | null proofs = case side proof of
         L -> toHash a == leftHash proof
         R -> toHash a == rightHash proof
     | otherwise = case side proof of
-        L -> verify (leftHash proof) proofs a
-        R -> verify (rightHash proof) proofs a
+        L -> verifyProof (leftHash proof) proofs a
+        R -> verifyProof (rightHash proof) proofs a
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
