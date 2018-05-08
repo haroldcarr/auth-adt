@@ -106,7 +106,7 @@ instance (GHashable' a, GHashable' b) => GHashable' (a :+: b) where
   gtoBS (R1 a) = gtoBS a
 
 instance (GHashable' a, GHashable' b) => GHashable' (a :*: b) where
-  gtoHash (a :*: b) = toHash (gtoBS a <> gtoBS b)
+  gtoHash (a :*: b) = toHash (getHash (gtoHash a) <> getHash (gtoHash b))
   gtoBS (a :*: b) = gtoBS a <> gtoBS b
 
 -- Instances

@@ -22,7 +22,7 @@ main = defaultMain tests
 data Tree a
   = Tip a
   | Bin (Tree a) (Tree a)
-  deriving (Show, Eq, Functor, Generic, Generic1, Authable)
+  deriving (Show, Eq, Functor, Generic, Generic1, Authable, Hashable)
 
 instance Arbitrary a => Arbitrary (Tree a) where
   arbitrary = do
@@ -44,10 +44,6 @@ arbitrarySizedTree m = do
   case m of
     1 -> pure $ Tip a
     otherwise -> Bin <$> (arbitrarySizedTree n) <*> (arbitrarySizedTree (m - n))
-
-instance (Hashable a) => Hashable (Tree a) where
-  toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
-  toHash (Tip a) = toHash a
 
 exampleTree :: Tree Int
 exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
