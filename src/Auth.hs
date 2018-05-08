@@ -54,13 +54,11 @@ verify _ [] _ = False
 verify parentHash (proof:proofs) a
     | parentHash /= toHash proof = False
     | null proofs = case side proof of
-        L -> hashA == leftHash proof
-        R -> hashA == rightHash proof
+        L -> toHash a == leftHash proof
+        R -> toHash a == rightHash proof
     | otherwise = case side proof of
         L -> verify (leftHash proof) proofs a
         R -> verify (rightHash proof) proofs a
-    where
-        hashA = toHash a
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof

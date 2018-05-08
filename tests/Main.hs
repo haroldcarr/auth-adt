@@ -10,6 +10,8 @@ import Test.QuickCheck.Monadic
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import System.Random
+import Crypto.Number.Generate (generateBetween)
 
 import Auth
 import Hash
@@ -22,12 +24,45 @@ data Tree a
   | Bin (Tree a) (Tree a)
   deriving (Show, Eq, Functor, Generic, Generic1, Authable)
 
+instance Arbitrary a => Arbitrary (Tree a) where
+  arbitrary = do
+    m <- genPos
+    arbitrarySizedTree m
+
+genPosUnique :: Tree Int -> Gen Int
+genPosUnique t = do
+    a <- abs <$> arbitrary `suchThat` (> 1)
+    if findElem a t then genPosUnique t else pure a
+
+genPos :: Gen Int
+genPos = abs <$> arbitrary `suchThat` (> 1)
+
+arbitrarySizedTree :: Arbitrary a => Int -> Gen (Tree a)
+arbitrarySizedTree m = do
+  a <- arbitrary
+  n <- choose (1, m - 1)
+  case m of
+    1 -> pure $ Tip a
+    otherwise -> Bin <$> (arbitrarySizedTree n) <*> (arbitrarySizedTree (m - n))
+
 instance (Hashable a) => Hashable (Tree a) where
   toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
   toHash (Tip a) = toHash a
 
 exampleTree :: Tree Int
 exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
+
+findElem :: Eq a => a -> Tree a -> Bool 
+findElem a (Tip b) = a == b
+findElem a (Bin l r) = findElem a l || findElem a r
+
+replaceRandomElem :: Eq a => a -> Tree a -> IO (Tree a)
+replaceRandomElem a (Tip b) = pure $ Tip a
+replaceRandomElem a (Bin l r) = do
+    b <- randomIO
+    if b 
+        then Bin <$> replaceRandomElem a l <*> pure r
+        else Bin <$> pure l <*> replaceRandomElem a r
 
 testGenericProof :: Tree Int -> Int -> Bool
 testGenericProof tree a = verify rootHash proof a
@@ -55,6 +90,12 @@ tests = testGroup "Authenticated Data Structures"
                 , testGenericProof exampleTree 18
                 , testGenericProof exampleTree 29
                 ]
-
+   , testProperty "Verify arbitrarily sized trees" $
+        forAll arbitrary $ \t ->
+        forAll (genPosUnique t) $ \a -> testTreeProperty a t
   ]
 
+testTreeProperty :: Int -> Tree Int -> Property
+testTreeProperty a tree = monadicIO $ do 
+    tree' <- liftIO $ replaceRandomElem a tree
+    pure $ testGenericProof tree' a
