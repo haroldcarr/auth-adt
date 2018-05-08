@@ -41,6 +41,18 @@ data ProofElem = ProofElem
     , rightHash :: Hash
     } deriving (Show, Eq)
 
+data AuthElem a
+    = AuthElem 
+        { authElemHash :: Hash
+        , lAuthChild :: AuthElem a
+        , rAuthChild :: AuthElem a
+        }
+    | AuthLeaf 
+        { authLeafHash :: Hash
+        , authValue :: Maybe a
+        }
+    deriving (Show, Eq)
+
 -- | The verifier begins with the proof stream and
 -- just the hash of the authenticated data structure.
 -- It first compares this hash to the hash of the first
@@ -62,7 +74,11 @@ verify parentHash (proof:proofs) a
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
-    default prove :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> a -> Proof
+    default prove 
+        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+        => f a
+        -> a
+        -> Proof
     prove a item = reverse $ gProve [] (from1 a) item
 
     prove' :: forall a. (Hashable a, Eq a) => Proof -> f a -> a -> Proof
@@ -74,6 +90,12 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
+    auth :: forall a. (Hashable a, Eq a) => f a -> AuthElem a
+    default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+        => f a
+        -> AuthElem a
+    auth f = gAuth (from1 f)
+
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
     default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash 
     proveHash a = gProveHash (from1 a)
@@ -81,24 +103,29 @@ class (Functor f) => Authable f where
 class GAuthable f where
     gProve :: (Hashable a, Eq a) => Proof -> f a -> a -> Proof
     gProveHash :: (Hashable a, Eq a) => f a -> Hash
+    gAuth :: (Hashable a, Eq a) => f a -> AuthElem a
 
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
     gProveHash (Rec1 f) = proveHash f 
+    gAuth (Rec1 f) = auth f
 
 instance GAuthable Par1 where
     gProve path (Par1 a) item
         | item == a = path
         | otherwise = []
     gProveHash (Par1 a) = toHash a
+    gAuth (Par1 a) = AuthLeaf (toHash a) (Just a)
 
 instance GAuthable U1 where
     gProve _ _ _ = []
     gProveHash _  = emptyHash
+    gAuth _ = AuthLeaf emptyHash Nothing
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
     gProveHash (M1 a) = gProveHash a
+    gAuth (M1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gProve path (L1 a) = gProve path a
@@ -106,6 +133,9 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
 
     gProveHash (L1 a) = gProveHash a
     gProveHash (R1 a) = gProveHash a
+
+    gAuth (L1 a) = gAuth a
+    gAuth (R1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
     gProve path (a :*: b) item 
@@ -115,5 +145,8 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
     gProveHash (a :*: b) = 
         toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 
+    gAuth (a :*: b) = 
+        AuthElem (gProveHash (a :*: b)) (gAuth a) (gAuth b) 
+
 instance Hashable ProofElem where
-  toHash (ProofElem s l r) = toHash (getHash l <> getHash r)
+    toHash (ProofElem s l r) = toHash (getHash l <> getHash r)
