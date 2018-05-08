@@ -10,11 +10,7 @@ import Hash
 data Tree a
   = Tip a
   | Bin (Tree a) (Tree a)
-  deriving (Show, Eq, Functor, Generic, Generic1, Authable)
-
-instance (Hashable a) => Hashable (Tree a) where
-  toHash (Bin l r) = toHash (getHash (toHash l) <> getHash (toHash r))
-  toHash (Tip a) = toHash a
+  deriving (Show, Eq, Functor, Generic, Generic1, Authable, Hashable)
 
 exampleTree :: Tree Int
 exampleTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
