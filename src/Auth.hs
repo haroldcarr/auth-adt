@@ -9,9 +9,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Auth 
+module Auth
     ( verifyProof
-    , fetch
     , Authable(..)
     , Proof
     , ProofElem(..)
@@ -42,10 +41,10 @@ data ProofElem = ProofElem
     , rightHash :: Hash
     } deriving (Show, Eq)
 
-type AuthTree a = (Hash, Tree a) 
+type AuthTree a = (Hash, Tree a)
 data Tree a
     = Bin (AuthTree a) (AuthTree a)
-    | Tip (Maybe a) 
+    | Tip (Maybe a)
     deriving (Show, Eq)
 
 -- | The verifier begins with the proof stream and
@@ -67,30 +66,9 @@ verifyProof parentHash (proof:proofs) a
         L -> verifyProof (leftHash proof) proofs a
         R -> verifyProof (rightHash proof) proofs a
 
-fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a
-fetch idx authTree = do
-    tree <- unAuth authTree
-    case (idx, tree) of
-        ([], Tip v) -> v
-        (L : idx', Bin l _) -> fetch idx' l
-        (R : idx', Bin _ r) -> fetch idx' r
-        _ -> Nothing
-        
--- | unAuth is a private function
-unAuth :: Hashable a => AuthTree a -> Maybe (Tree a)
-unAuth (h, t@(Bin l r)) = 
-    if h == toHash (getHash (fst l) <> getHash (fst r))
-        then Just t
-        else Nothing
-unAuth (h, t@(Tip valueM)) = do
-    v <- valueM
-    if h == toHash v
-        then Just t
-        else Nothing
-
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
-    default prove 
+    default prove
         :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> a
@@ -113,7 +91,7 @@ class (Functor f) => Authable f where
     auth f = gAuth (from1 f)
 
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
-    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash 
+    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash
     proveHash a = gProveHash (from1 a)
 
 class GAuthable f where
@@ -123,7 +101,7 @@ class GAuthable f where
 
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
-    gProveHash (Rec1 f) = proveHash f 
+    gProveHash (Rec1 f) = proveHash f
     gAuth (Rec1 f) = auth f
 
 instance GAuthable Par1 where
@@ -154,14 +132,14 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gAuth (R1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
-    gProve path (a :*: b) item 
-        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item 
+    gProve path (a :*: b) item
+        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item
         ++  gProve (ProofElem R (gProveHash a) (gProveHash b) : path) b item
-    
-    gProveHash (a :*: b) = 
+
+    gProveHash (a :*: b) =
         toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 
-    gAuth (a :*: b) = 
+    gAuth (a :*: b) =
         (gProveHash (a :*: b)
         , Bin (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
         )
