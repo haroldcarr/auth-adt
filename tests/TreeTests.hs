@@ -29,7 +29,7 @@ instance Arbitrary a => Arbitrary (BinTree a) where
     arbitrarySizedBinTree m
 
 instance Arbitrary ByteString where
-    arbitrary = toS <$> (arbitrary :: Gen [Char]) `suchThat` (/= "") 
+    arbitrary = toS <$> (arbitrary :: Gen [Char]) `suchThat` (/= "")
 
 testGenericProof :: (Hashable a, Eq a) => BinTree a -> a -> Bool
 testGenericProof tree a = verifyProof rootHash proof a
@@ -42,11 +42,11 @@ testBinTreeProperty a tree = monadicIO $ do
     tree' <- liftIO $ replaceRandomElem a tree
     pure $ testGenericProof tree' a
 
-treeTests :: TestTree
-treeTests = testGroup "Tree Tests"
+test_treeTests :: TestTree
+test_treeTests = testGroup "Tree Tests"
   [ testCase "Verify valid element in proof should return true" $
-        assertBool "1, 2, 3, 5, 8 should be in the proof" $ 
-            not $ elem False 
+        assertBool "1, 2, 3, 5, 8 should be in the proof" $
+            not $ elem False
                 [ testGenericProof exampleBinTreeInt 3
                 , testGenericProof exampleBinTreeInt 5
                 , testGenericProof exampleBinTreeInt 2
