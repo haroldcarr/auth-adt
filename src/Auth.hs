@@ -9,14 +9,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Auth 
-    ( verifyProof
-    , fetch
-    , Authable(..)
-    , Proof
-    , ProofElem(..)
-    , Side(..)
-    ) where
+module Auth
+ {-   ( verifyProof-}
+    {-{-, fetch-}-}
+    {-, Authable(..)-}
+    {-, Proof-}
+    {-, ProofElem(..)-}
+    {-, Side(..)-}
+    (auth, removeValues, Auth(..), unAuthP, unAuthV, AuthMP, AuthMV)
+    where
 
 import Protolude hiding (show, Hashable(..))
 import Prelude (Show(..))
@@ -24,6 +25,7 @@ import Unsafe
 
 import Crypto.Hash
 import Crypto.Hash.Algorithms
+import Control.Monad.Writer
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BA
@@ -42,10 +44,11 @@ data ProofElem = ProofElem
     , rightHash :: Hash
     } deriving (Show, Eq)
 
-type AuthTree a = (Hash, Tree a) 
-data Tree a
-    = Bin (AuthTree a) (AuthTree a)
-    | Tip (Maybe a) 
+type AuthTree a = (Hash, TreeGen a)
+
+data TreeGen a
+    = BinGen (AuthTree a) (AuthTree a)
+    | TipGen (Maybe a)
     deriving (Show, Eq)
 
 -- | The verifier begins with the proof stream and
@@ -67,30 +70,64 @@ verifyProof parentHash (proof:proofs) a
         L -> verifyProof (leftHash proof) proofs a
         R -> verifyProof (rightHash proof) proofs a
 
-fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a
-fetch idx authTree = do
-    tree <- unAuth authTree
-    case (idx, tree) of
-        ([], Tip v) -> v
-        (L : idx', Bin l _) -> fetch idx' l
-        (R : idx', Bin _ r) -> fetch idx' r
-        _ -> Nothing
-        
--- | unAuth is a private function
-unAuth :: Hashable a => AuthTree a -> Maybe (Tree a)
-unAuth (h, t@(Bin l r)) = 
-    if h == toHash (getHash (fst l) <> getHash (fst r))
-        then Just t
-        else Nothing
-unAuth (h, t@(Tip valueM)) = do
-    v <- valueM
-    if h == toHash v
-        then Just t
-        else Nothing
+type AuthMP s a = Writer [s] a
+type AuthMV s a = State [s] a
+
+data Auth a = WithHash a Hash | OnlyHash Hash deriving (Show, Functor)
+
+
+removeValues :: Auth a -> Auth a
+removeValues = (\(WithHash a h) -> OnlyHash h)
+
+
+
+auth :: Hashable a => a -> Auth a
+auth a = WithHash a (toHash a)
+
+unAuthP :: Auth a -> AuthMP Hash a
+unAuthP (WithHash a h) = tell [h] >> return a
+
+unAuthV :: Auth a -> AuthMV Hash a
+unAuthV a@(OnlyHash h) = do
+  stream <- get
+  case stream of
+    [] -> panic "empty proof stream"
+    x:xs -> do
+      put xs
+      if h == x then undefined else panic "bad proof"
+
+
+{-runProver :: AuthM s a -> (a, [Hash])-}
+{-runProver = undefined-}
+
+{-runVerifier :: AuthM s a -> Maybe a-}
+{-runVerifier = undefined-}
+
+
+{-fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a-}
+{-fetch idx authTree = do-}
+    {-tree <- unAuth authTree-}
+    {-case (idx, tree) of-}
+        {-([], Tip v) -> v-}
+        {-(L : idx', Bin l _) -> fetch idx' l-}
+        {-(R : idx', Bin _ r) -> fetch idx' r-}
+        {-_ -> Nothing-}
+
+{--- | unAuth is a private function-}
+{-unAuth :: Hashable a => AuthTree a -> Maybe (Tree a)-}
+{-unAuth (h, t@(Bin l r)) =-}
+    {-if h == toHash (getHash (fst l) <> getHash (fst r))-}
+        {-then Just t-}
+        {-else Nothing-}
+{-unAuth (h, t@(Tip valueM)) = do-}
+    {-v <- valueM-}
+    {-if h == toHash v-}
+        {-then Just t-}
+        {-else Nothing-}
 
 class (Functor f) => Authable f where
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
-    default prove 
+    default prove
         :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> a
@@ -106,11 +143,11 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
-    auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
-    default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+    authenticate :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
+    default authenticate :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> AuthTree a
-    auth f = gAuth (from1 f)
+    authenticate f = gAuth (from1 f)
 
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
     default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash 
@@ -125,18 +162,19 @@ instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
     gProveHash (Rec1 f) = proveHash f 
     gAuth (Rec1 f) = auth f
+    gAuth (Rec1 f) = authenticate f
 
 instance GAuthable Par1 where
     gProve path (Par1 a) item
         | item == a = path
         | otherwise = []
     gProveHash (Par1 a) = toHash a
-    gAuth (Par1 a) = (toHash a, Tip (Just a))
+    gAuth (Par1 a) = (toHash a, TipGen (Just a))
 
 instance GAuthable U1 where
     gProve _ _ _ = []
     gProveHash _  = emptyHash
-    gAuth _ = (emptyHash, Tip Nothing)
+    gAuth _ = (emptyHash, TipGen Nothing)
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
@@ -163,7 +201,7 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
 
     gAuth (a :*: b) = 
         (gProveHash (a :*: b)
-        , Bin (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
+        , BinGen (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
         )
 
 instance Hashable ProofElem where
