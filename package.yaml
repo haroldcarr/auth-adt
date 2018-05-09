@@ -18,7 +18,8 @@ dependencies:
   - bytestring
   - random
   - memory
-  - merkle-tree 
+  - merkle-tree
+  - mtl
 
 library:
   source-dirs: src
