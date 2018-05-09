@@ -16,7 +16,6 @@ module Auth
     {-, Proof-}
     {-, ProofElem(..)-}
     {-, Side(..)-}
-    (auth, removeValues, Auth(..), unAuthP, unAuthV, AuthMP, AuthMV)
     where
 
 import Protolude hiding (show, Hashable(..))
@@ -70,39 +69,7 @@ verifyProof parentHash (proof:proofs) a
         L -> verifyProof (leftHash proof) proofs a
         R -> verifyProof (rightHash proof) proofs a
 
-type AuthMP s a = Writer [s] a
-type AuthMV s a = State [s] a
-
-data Auth a = WithHash a Hash | OnlyHash Hash deriving (Show, Functor)
-
-
-removeValues :: Auth a -> Auth a
-removeValues = (\(WithHash a h) -> OnlyHash h)
-
-
-
-auth :: Hashable a => a -> Auth a
-auth a = WithHash a (toHash a)
-
-unAuthP :: Auth a -> AuthMP Hash a
-unAuthP (WithHash a h) = tell [h] >> return a
-
-unAuthV :: Auth a -> AuthMV Hash a
-unAuthV a@(OnlyHash h) = do
-  stream <- get
-  case stream of
-    [] -> panic "empty proof stream"
-    x:xs -> do
-      put xs
-      if h == x then undefined else panic "bad proof"
-
-
-{-runProver :: AuthM s a -> (a, [Hash])-}
-{-runProver = undefined-}
-
-{-runVerifier :: AuthM s a -> Maybe a-}
-{-runVerifier = undefined-}
-
+{-type AuthMP s a = Writer [s] a-}
 
 {-fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a-}
 {-fetch idx authTree = do-}

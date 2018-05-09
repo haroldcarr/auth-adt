@@ -20,6 +20,7 @@ dependencies:
   - memory
   - mtl
   - merkle-tree
+  - containers
 
 library:
   source-dirs: src
