@@ -47,14 +47,8 @@ data Tree a
     | Tip (Maybe a)
     deriving (Show, Eq)
 
--- | The verifier begins with the proof stream and
--- just the hash of the authenticated data structure.
--- It first compares this hash to the hash of the first
--- element of the proof stream and checks its side.
--- If L, the left hash of the first element will now become
--- the parent hash that compares with the hash of the second element
--- until it gets to the last element of the proof.
--- The verifier then ...
+-- | Verifier holds only the hash of the data structure
+-- It verifies inclusion of an element in the data structure
 verifyProof :: Hashable a => Hash -> Proof -> a -> Bool
 verifyProof _ [] _ = False
 verifyProof parentHash (proof:proofs) a
@@ -67,6 +61,7 @@ verifyProof parentHash (proof:proofs) a
         R -> verifyProof (rightHash proof) proofs a
 
 class (Functor f) => Authable f where
+    -- | Generate membership proof
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
     default prove
         :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
@@ -84,6 +79,7 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
+    -- | Generate authenticated data structure generically
     auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
     default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
