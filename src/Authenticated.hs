@@ -1,20 +1,5 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Authenticated (
   runProver,
   runVerifier,
@@ -78,7 +63,7 @@ class Shallow f where
   {-shallow = to1 . gshallow . from1-}
 
 instance Shallow (Auth a) where
-  shallow (WithHash a h ) = (OnlyHash h)
+  shallow (WithHash a h ) = OnlyHash h
   shallow h = h
 
 -- | From a computation, produce the result and the proof stream
@@ -90,7 +75,7 @@ runVerifier
   :: AuthM s a
   -> ProofStream s
   -> Either AuthError a
-runVerifier m proof = fst $ runState (runExceptT m) proof
+runVerifier m = evalState (runExceptT m)
 
 {-class GShallow f where-}
   {-gshallow :: f a -> f a-}
