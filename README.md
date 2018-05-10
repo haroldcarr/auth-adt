@@ -81,18 +81,13 @@ example = do
 
 ```
 
-
-
-
-
-
 Membership proofs with GHC.Generics
 ===================================
 
 We also present a method to construct a membership proof for any data structure using GHC.Generics.
 
 An `Authable` typeclass provides two methods, `prove` and `authenticate`.
-An untrusted source can invoke the `prove` method to construct a proof of inclusion of an element in any data structure.
+An untrusted source can invoke the `prove` method to construct a proof of inclusion of an element.
 A trusted party can verify that the answer comes from the expected data source.
 
 ```haskell
