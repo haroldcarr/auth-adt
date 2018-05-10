@@ -19,18 +19,6 @@ import Hash
 -- Tests
 ----------------------------
 
-exampleBinTreeInt :: BinTree Int
-exampleBinTreeInt = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
-
-instance Arbitrary a => Arbitrary (BinTree a) where
-  arbitrary = do
-    m <- genPos
-    arbitrarySizedBinTree m
-
-instance Arbitrary ByteString where
-    arbitrary = toS <$> (arbitrary :: Gen [Char]) `suchThat` (/= "")
-
-
 testGenericProof :: (Authable f, Hashable (f a), Hashable a, Eq a) => f a -> a -> Bool
 testGenericProof tree a = verifyProof rootHash proof a
     where
@@ -42,10 +30,11 @@ testBinTreeProperty a tree = monadicIO $ do
     tree' <- liftIO $ replaceBinElem a tree
     pure $ testGenericProof tree' a
 
-test_treeTests :: TestTree
-test_treeTests = testGroup "Tree Tests"
-  [ testCase "Verify valid element in proof should return true" $
 
+test_treeTests :: TestTree
+test_treeTests = testGroup "Create and verify proof in tree structures"
+  [ testGroup "Binary Trees"
+    [ testCase "Verify valid element in proof should return true" $
         assertBool "1, 2, 3, 5, 8 should be in the proof" $
             not $ elem False
                 [ testGenericProof exampleBinTreeInt 3
@@ -164,4 +153,5 @@ data TernaryTree a
 exampleTernaryTreeInt :: TernaryTree Int
 exampleTernaryTreeInt =
   Ternary (Ternary (Tip' 1) (Tip' 3) (Tip' 8)) (Tip' 5) (Ternary (Tip' 9) (Ternary (Tip' 2) (Tip' 12) (Tip' (-5))) (Tip' (-4)))
+
 

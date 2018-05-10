@@ -63,10 +63,11 @@ library:
   exposed-modules:
     - Auth
     - Hash
+    - Authenticated
 
 tests:
   auth-adt-tests:
-    main:                Main.hs
+    main:                Driver.hs
     source-dirs:         tests
     ghc-options:
     - -threaded

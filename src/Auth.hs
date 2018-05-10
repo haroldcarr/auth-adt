@@ -84,8 +84,8 @@ class (Functor f) => Authable f where
 
 
     -- | Generate authenticated data structure generically
-    auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
-    default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+    authenticate :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
+    default authenticate :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> AuthTree a
     authenticate f = gAuth (from1 f)
@@ -102,7 +102,6 @@ class GAuthable f where
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
     gProveHash (Rec1 f) = proveHash f
-    gAuth (Rec1 f) = auth f
     gAuth (Rec1 f) = authenticate f
 
 instance GAuthable Par1 where
