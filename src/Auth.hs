@@ -17,12 +17,14 @@ module Auth
     , Side(..)
     ) where
 
+
 import Protolude hiding (show, Hashable(..))
 import Prelude (Show(..))
 import Unsafe
 
 import Crypto.Hash
 import Crypto.Hash.Algorithms
+import Control.Monad.Writer
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BA
@@ -41,10 +43,11 @@ data ProofElem = ProofElem
     , rightHash :: Hash
     } deriving (Show, Eq)
 
-type AuthTree a = (Hash, Tree a)
-data Tree a
-    = Bin (AuthTree a) (AuthTree a)
-    | Tip (Maybe a)
+type AuthTree a = (Hash, TreeGen a)
+
+data TreeGen a
+    = BinGen (AuthTree a) (AuthTree a)
+    | TipGen (Maybe a)
     deriving (Show, Eq)
 
 -- | Verifier holds only the hash of the data structure
@@ -79,12 +82,13 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
+
     -- | Generate authenticated data structure generically
-    auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
-    default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+    authenticate :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
+    default authenticate :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> AuthTree a
-    auth f = gAuth (from1 f)
+    authenticate f = gAuth (from1 f)
 
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
     default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash
@@ -98,19 +102,19 @@ class GAuthable f where
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
     gProveHash (Rec1 f) = proveHash f
-    gAuth (Rec1 f) = auth f
+    gAuth (Rec1 f) = authenticate f
 
 instance GAuthable Par1 where
     gProve path (Par1 a) item
         | item == a = path
         | otherwise = []
     gProveHash (Par1 a) = toHash a
-    gAuth (Par1 a) = (toHash a, Tip (Just a))
+    gAuth (Par1 a) = (toHash a, TipGen (Just a))
 
 instance GAuthable U1 where
     gProve _ _ _ = []
     gProveHash _  = emptyHash
-    gAuth _ = (emptyHash, Tip Nothing)
+    gAuth _ = (emptyHash, TipGen Nothing)
 
 instance (GAuthable a) => GAuthable (M1 i c a) where
     gProve path (M1 a) = gProve path a
@@ -137,7 +141,7 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
 
     gAuth (a :*: b) =
         (gProveHash (a :*: b)
-        , Bin (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
+        , BinGen (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
         )
 
 instance Hashable ProofElem where
