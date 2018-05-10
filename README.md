@@ -22,6 +22,8 @@ the prover holds the full ADS of type `Auth T`, which consist of pairs <h<sub>i<
 where v<sub>i</sub> is any value of type `T` and h<sub>i</sub> is its digest, i.e. the hash of the
 shallow projection of `v`. The verifier only keeps the digest `h` of the ADS.
 
+
+An example (more in ExampleAuth.hs):
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -78,11 +80,6 @@ example = do
 
 
 ```
-
-
-
-
-
 
 Membership proofs with GHC.Generics
 ===================================
