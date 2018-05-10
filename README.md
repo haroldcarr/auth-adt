@@ -16,14 +16,13 @@ A verifier can then efficiently check the authenticity of the answer.
 
 In their paper "Authenticated Data Structures, Generically"[1], A. Miller et al. present a generic
 method to program authenticated operations over any data structure.
-They define a well-typed functional programming language (lambda-auth) whose programs result in code
+They define a well-typed functional programming language, called lambda-auth, whose programs result in code
 that is secure under the standard cryptographic assumption of collision-resistant hash functions.
 
-We present an implementation in Haskell of the lambda-auth PL. In this model of computation,
+We present an implementation in Haskell of the lambda-auth programming language. In this model of computation,
 the prover holds the full ADS of type `Auth T`, which consist of pairs <h<sub>i</sub>, v<sub>i</sub>>
 where v<sub>i</sub> is any value of type `T` and h<sub>i</sub> is its digest, i.e. the hash of the
-shallow projection of `v`. The verifier only keeps the digest `h` of the Authenticated Data Structure.
-
+shallow projection of `v`. The verifier only keeps the digest `h` of the authenticated data structure.
 
 An example (more in ExampleAuth.hs):
 ```haskell
@@ -83,14 +82,14 @@ example = do
 
 ```
 
-Membership proofs with GHC.Generics
-===================================
+Membership proofs
+=================
 
 We also present a method to construct a membership proof for any data structure using GHC.Generics.
 
-An `Authable` typeclass provides two methods, `prove` and `authenticate`.
+An `Authable` typeclass provides two methods: `prove` and `authenticate`.
 An untrusted source can invoke the `prove` method to construct a proof of inclusion of an element.
-A trusted party can verify that the answer comes from the expected data source.
+A trusted party can verify that the proof of inclusion comes from the expected data source.
 
 ```haskell
 data BinTree a
@@ -112,7 +111,7 @@ binTreeExample = do
   pure $ verifyProof rootHash proof member
 ```
 
-The `authenticate` method generates an authenticated data structure from a non-authenticated data structure.
+The `authenticate` method in `Authable` generates an authenticated data structure from a non-authenticated data structure.
 
 
 
