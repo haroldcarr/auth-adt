@@ -38,7 +38,7 @@ import qualified Auth
 type ProofStream s = (Seq s)
 
 -- | Errors returned by runVerifier
-data AuthError = NoMoreProofElems | MismatchedHash Hash Hash deriving (Show)
+data AuthError = NoMoreProofElems | MismatchedHash Hash Hash deriving (Show, Eq)
 
 -- | An authenticated computation
 type AuthM s a = ExceptT AuthError (State (ProofStream s)) a
@@ -72,6 +72,7 @@ unAuth (OnlyHash hash) = do
         then return shallow
         else throwError $ MismatchedHash shallowHash hash
 
+-- | Create a shallow projection
 class Shallow f where
   shallow :: f a -> f a
   default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a
@@ -87,8 +88,8 @@ runProver m = runState (runExceptT m) Seq.empty
 
 -- | Verify a computation with a proof stream
 runVerifier
-  :: AuthM s a -- ^ the computation
-  -> ProofStream s -- &
+  :: AuthM s a
+  -> ProofStream s
   -> Either AuthError a
 runVerifier m proof = fst $ runState (runExceptT m) proof
 

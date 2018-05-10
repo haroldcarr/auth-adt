@@ -14,12 +14,12 @@ data Tree a
   | Bin (Auth (Tree a)) (Auth (Tree a))
   deriving (Eq, Functor,Generic, Generic1, Show, Hashable)
 
-instance Shallow Tree
+{-instance Shallow Tree-}
 
 
-{-instance Shallow (Tree a) where-}
-    {-shallow (Tip s) = Tip s-}
-    {-shallow (Bin l r) = Bin (shallow l) (shallow r)-}
+instance Shallow Tree  where
+    shallow (Tip s) = Tip s
+    shallow (Bin l r) = Bin (shallow l) (shallow r)
 
 data Bit = L | R
 
