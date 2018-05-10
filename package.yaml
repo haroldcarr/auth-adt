@@ -60,7 +60,7 @@ library:
     - NoImplicitPrelude
     - FlexibleInstances
   exposed-modules:
-    - Auth
+    - Membership
     - Hash
     - Authenticated
 
