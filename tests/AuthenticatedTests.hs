@@ -16,7 +16,6 @@ data Tree a
 
 instance Shallow Tree
 
-data List a = Nil | Auth (List a) deriving (Functor, Generic, Generic1, Show)
 
 {-instance Shallow (Tree a) where-}
     {-shallow (Tip s) = Tip s-}
