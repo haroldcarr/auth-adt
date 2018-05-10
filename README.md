@@ -38,9 +38,11 @@ data Tree a
   | Bin (Auth (Tree a)) (Auth (Tree a))
   deriving (Eq, Functor, Generic, Generic1, Show, Hashable)
 
+-- | Construct an authenticated branch
 bin :: Hashable a => Auth (Tree a) -> Auth (Tree a) -> Auth (Tree a)
 bin l r = auth (Bin l r)
 
+-- | Construct an authenticated tip
 tip :: Hashable a => a -> Auth (Tree a)
 tip v = auth $ Tip v
 
@@ -64,7 +66,7 @@ fetch idx authTree = do
 tree :: Auth (Tree Text)
 tree = bin (bin (tip "b") (bin (tip "c") (bin (tip "d") (tip "c")))) (tip "a")
 
--- root hash
+-- shallow projection of the tree ( just the root hash )
 shallowTree :: Auth (Tree Text)
 shallowTree = shallow tree
 
@@ -73,6 +75,7 @@ example = do
   let proof = snd $ runProver $ fetch [L, R, L] tree
   print $ runVerifier (fetch [L, R, L] shallowTree) proof
   print $ runVerifier (fetch [R] shallowTree) proof -- returns AuthError because hashes don't match
+
 
 ```
 
