@@ -126,3 +126,7 @@ instance (Hashable a, Hashable b) => Hashable (a,b)
 instance (Hashable a, Hashable b) => Hashable (Either a b) where
   toHash (Left x) = toHash x
   toHash (Right x) = toHash x
+
+
+instance Hashable Text where
+  toHash = Hash . hash . showHash

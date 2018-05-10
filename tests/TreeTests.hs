@@ -31,8 +31,8 @@ testBinTreeProperty a tree = monadicIO $ do
     pure $ testGenericProof tree' a
 
 
-treeTests :: TestTree
-treeTests = testGroup "Create and verify proof in tree structures"
+test_treeTests :: TestTree
+test_treeTests = testGroup "Create and verify proof in tree structures"
   [ testGroup "Binary Trees"
     [ testCase "Verify valid element in proof should return true" $
         assertBool "1, 2, 3, 5, 8 should be in the proof" $
@@ -153,4 +153,5 @@ data TernaryTree a
 exampleTernaryTreeInt :: TernaryTree Int
 exampleTernaryTreeInt =
   Ternary (Ternary (Tip' 1) (Tip' 3) (Tip' 8)) (Tip' 5) (Ternary (Tip' 9) (Ternary (Tip' 2) (Tip' 12) (Tip' (-5))) (Tip' (-4)))
+
 
