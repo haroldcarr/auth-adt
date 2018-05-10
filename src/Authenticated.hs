@@ -57,9 +57,9 @@ auth a = WithHash a (toHash a)
 -- | When called as Prover, push a shallow version of the auth value to the proof stream
 -- and when called as Verifier take a shallow from the proof stream and compare it to the
 -- given elements hash
-unAuth :: (Shallow a, Hashable a) => Auth a -> AuthM a a
+unAuth :: (Hashable a) => Auth a -> AuthM a a
 unAuth (WithHash a h) = do
-  modify (Seq.|> (shallow a))
+  modify (Seq.|> a)
   return a
 unAuth (OnlyHash hash) = do
   stream <- get
@@ -73,15 +73,15 @@ unAuth (OnlyHash hash) = do
         else throwError $ MismatchedHash shallowHash hash
 
 class Shallow f where
-  shallow :: f -> f
-  {-default shallow :: (Generic1 f, GShallow (Rep1 f)) => f -> f-}
-  {-shallow = to1 . gshallow . from1-}
+  shallow :: f a -> f a
+  default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a
+  shallow = to1 . gshallow . from1
 
-instance Shallow (Auth a) where
+instance Shallow (Auth) where
   shallow (WithHash a h ) = (OnlyHash h)
   shallow h = h
 
--- |
+-- | From a secure computation produce the result and the proof stream
 runProver :: AuthM s a -> (Either AuthError a, ProofStream s)
 runProver m = runState (runExceptT m) Seq.empty
 
@@ -90,4 +90,23 @@ runVerifier :: AuthM s a -> ProofStream s -> Either AuthError a
 runVerifier m proof = fst $ runState (runExceptT m) proof
 
 class GShallow f where
-    gshallow :: f a -> f a
+  gshallow :: f a -> f a
+
+instance GShallow U1 where
+  gshallow U1 = U1
+
+instance (Shallow f) => GShallow (Rec1 f) where
+  gshallow (Rec1 f) = Rec1 (shallow f)
+
+instance  GShallow (K1 i c) where
+    gshallow (K1 c) = K1 (c)
+
+instance GShallow f => GShallow (M1 i t f) where
+    gshallow (M1 x) = M1 (gshallow x)
+
+instance (GShallow l, GShallow r) => GShallow (l :+: r) where
+    gshallow (L1 x) = L1 (gshallow x)
+    gshallow (R1 x) = R1 (gshallow x)
+
+instance (GShallow l, GShallow r, Shallow (l ), Shallow (r )) => GShallow (l :*: r) where
+    gshallow (x :*: y) = gshallow (shallow x) :*: gshallow (shallow y)

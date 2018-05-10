@@ -14,15 +14,17 @@ data Tree a
   | Bin (Auth (Tree a)) (Auth (Tree a))
   deriving (Eq, Functor,Generic, Generic1, Show, Hashable)
 
+instance Shallow Tree
+
 data List a = Nil | Auth (List a) deriving (Functor, Generic, Generic1, Show)
 
-instance Shallow (Tree a) where
-    shallow (Tip s) = Tip s
-    shallow (Bin l r) = Bin (shallow l) (shallow r)
+{-instance Shallow (Tree a) where-}
+    {-shallow (Tip s) = Tip s-}
+    {-shallow (Bin l r) = Bin (shallow l) (shallow r)-}
 
 data Bit = L | R
 
-fetch :: Hashable a => [Bit] -> Auth (Tree a) -> AuthM (Tree a) (Maybe a)
+fetch :: (Hashable a) => [Bit] -> Auth (Tree a) -> AuthM (Tree a) (Maybe a)
 fetch idx authTree = do
   tree <- (unAuth authTree)
   case (idx, tree) of
