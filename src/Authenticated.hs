@@ -57,9 +57,9 @@ auth a = WithHash a (toHash a)
 -- | When called as Prover, push a shallow version of the auth value to the proof stream
 -- and when called as Verifier take a shallow from the proof stream and compare it to the
 -- given elements hash
-unAuth :: (Hashable a) => Auth a -> AuthM a a
+unAuth :: (Shallow a, Hashable a) => Auth a -> AuthM a a
 unAuth (WithHash a h) = do
-  modify (Seq.|> a)
+  modify (Seq.|> (shallow a))
   return a
 unAuth (OnlyHash hash) = do
   stream <- get
@@ -74,11 +74,11 @@ unAuth (OnlyHash hash) = do
 
 -- | Create a shallow projection
 class Shallow f where
-  shallow :: f a -> f a
-  default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a
-  shallow = to1 . gshallow . from1
+  shallow :: f -> f
+  {-default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a-}
+  {-shallow = to1 . gshallow . from1-}
 
-instance Shallow Auth where
+instance Shallow (Auth a) where
   shallow (WithHash a h ) = (OnlyHash h)
   shallow h = h
 
@@ -93,25 +93,25 @@ runVerifier
   -> Either AuthError a
 runVerifier m proof = fst $ runState (runExceptT m) proof
 
-class GShallow f where
-  gshallow :: f a -> f a
+{-class GShallow f where-}
+  {-gshallow :: f a -> f a-}
 
-instance GShallow U1 where
-  gshallow U1 = U1
+{-instance GShallow U1 where-}
+  {-gshallow U1 = U1-}
 
-instance (Shallow f) => GShallow (Rec1 f) where
-  gshallow (Rec1 f) = Rec1 (shallow f)
+{-instance (Shallow f) => GShallow (Rec1 f) where-}
+  {-gshallow (Rec1 f) = Rec1 (shallow f)-}
 
-instance GShallow (K1 i c) where
-  gshallow (K1 c) = (K1 c)
+{-instance GShallow (K1 i c) where-}
+  {-gshallow (K1 c) = (K1 c)-}
 
-instance GShallow f => GShallow (M1 i t f) where
-  gshallow (M1 a) = M1 (gshallow a)
+{-instance GShallow f => GShallow (M1 i t f) where-}
+  {-gshallow (M1 a) = M1 (gshallow a)-}
 
-instance (GShallow l, GShallow r) => GShallow (l :+: r) where
-  gshallow (L1 a) = L1 (gshallow a)
-  gshallow (R1 a) = R1 (gshallow a)
+{-instance (GShallow l, GShallow r) => GShallow (l :+: r) where-}
+  {-gshallow (L1 a) = L1 (gshallow a)-}
+  {-gshallow (R1 a) = R1 (gshallow a)-}
 
-instance (GShallow l, GShallow r, Shallow (l ), Shallow (r )) => GShallow (l :*: r) where
-  gshallow (a :*: b) = gshallow (shallow a) :*: gshallow (shallow b)
+{-instance (GShallow l, GShallow r) => GShallow (l :*: r) where-}
+  {-gshallow (a :*: b) = gshallow (a) :*: gshallow (b)-}
 
