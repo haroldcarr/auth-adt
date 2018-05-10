@@ -14,13 +14,15 @@ Authenticated data structures (ADS) allow untrusted parties (provers) answer que
 structures on behalf of a trusted source (verifier) and provide a compact proof of the computation.
 A verifier can then efficiently check the authenticity of the answer.
 
-In their paper "Authenticated Data Structures, Generically"[1], A. Miller et al. present a generic method to program authenticated operations over any data structure.
-They define a well-typed functional programming language (lambda-auth) whose programs result in code that is secure under the standard cryptographic assumption of collision-resistant hash functions.
+In their paper "Authenticated Data Structures, Generically"[1], A. Miller et al. present a generic
+method to program authenticated operations over any data structure.
+They define a well-typed functional programming language (lambda-auth) whose programs result in code
+that is secure under the standard cryptographic assumption of collision-resistant hash functions.
 
 We present an implementation in Haskell of the lambda-auth PL. In this model of computation,
 the prover holds the full ADS of type `Auth T`, which consist of pairs <h<sub>i</sub>, v<sub>i</sub>>
 where v<sub>i</sub> is any value of type `T` and h<sub>i</sub> is its digest, i.e. the hash of the
-shallow projection of `v`. The verifier only keeps the digest `h` of the ADS.
+shallow projection of `v`. The verifier only keeps the digest `h` of the Authenticated Data Structure.
 
 
 
@@ -33,10 +35,29 @@ Membership proofs with GHC.Generics
 
 We also present a method to construct a membership proof for any data structure using GHC.Generics.
 
-
 An `Authable` typeclass provides two methods, `prove` and `authenticate`.
-An untrusted party can invoke the `prove` method to construct a proof of inclusion of an element in any data structure.
-A trusted source can ...
+An untrusted source can invoke the `prove` method to construct a proof of inclusion of an element in any data structure.
+A trusted party can verify that the answer comes from the expected data source.
+
+```haskell
+data BinTree a
+  = Tip a
+  | Bin (BinTree a) (BinTree a)
+  deriving (Show, Eq, Functor, Generic, Generic1, Authable, Hashable)
+
+myBinTree :: BinTree Int
+myBinTree = Bin (Bin (Tip 3) (Bin (Bin (Tip 2) (Tip 5)) (Tip 8))) (Tip 1)
+
+binTreeExample :: IO Bool
+binTreeExample = do
+  let member = 3
+  -- Prove membership
+  let proof = prove myBinTree member
+  -- Verifier only keeps the hash of the root
+  let rootHash = toHash myBinTree
+  -- Verify proof
+  pure $ verifyProof rootHash proof member
+```
 
 The `authenticate` method generates an authenticated data structure from a non-authenticated data structure.
 
