@@ -34,14 +34,14 @@ import Hash
 import qualified Auth
 
 
--- |
+-- | A sequence of shallow projections
 type ProofStream s = (Seq s)
 
 -- | Errors returned by runVerifier
 data AuthError = NoMoreProofElems | MismatchedHash Hash Hash deriving (Show)
 
 -- | An authenticated computation
-type AuthM s a = ExceptT AuthError (State (Seq s)) a
+type AuthM s a = ExceptT AuthError (State (ProofStream s)) a
 
 -- | Either the value with the hash, or just the hash
 data Auth a = WithHash a Hash | OnlyHash Hash deriving (Show, Eq, Functor, Generic1)
@@ -81,12 +81,15 @@ instance Shallow (Auth) where
   shallow (WithHash a h ) = (OnlyHash h)
   shallow h = h
 
--- | From a secure computation produce the result and the proof stream
+-- | From a computation, produce the result and the proof stream
 runProver :: AuthM s a -> (Either AuthError a, ProofStream s)
 runProver m = runState (runExceptT m) Seq.empty
 
--- |
-runVerifier :: AuthM s a -> ProofStream s -> Either AuthError a
+-- | Verify a computation with a proof stream
+runVerifier
+  :: AuthM s a -- ^ the computation
+  -> ProofStream s -- &
+  -> Either AuthError a
 runVerifier m proof = fst $ runState (runExceptT m) proof
 
 class GShallow f where
