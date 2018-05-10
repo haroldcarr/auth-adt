@@ -5,7 +5,7 @@
 import Protolude hiding (Hashable, show)
 
 import Prelude (Show(..))
-import Auth hiding (Side(..))
+import Membership hiding (Side(..))
 import Hash
 
 {-data Tree a-}
