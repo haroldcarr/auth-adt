@@ -44,7 +44,7 @@ data AuthError = NoMoreProofElems | MismatchedHash Hash Hash deriving (Show, Eq)
 type AuthM s a = ExceptT AuthError (State (ProofStream s)) a
 
 -- | Either the value with the hash, or just the hash
-data Auth a = WithHash a Hash | OnlyHash Hash deriving (Show, Eq, Functor, Generic1)
+data Auth a = WithHash a Hash | OnlyHash Hash deriving (Show, Eq, Functor)
 
 instance Hashable a => Hashable (Auth a) where
   toHash (WithHash _ h) = h
@@ -78,7 +78,7 @@ class Shallow f where
   default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a
   shallow = to1 . gshallow . from1
 
-instance Shallow (Auth) where
+instance Shallow Auth where
   shallow (WithHash a h ) = (OnlyHash h)
   shallow h = h
 
@@ -102,15 +102,16 @@ instance GShallow U1 where
 instance (Shallow f) => GShallow (Rec1 f) where
   gshallow (Rec1 f) = Rec1 (shallow f)
 
-instance  GShallow (K1 i c) where
-    gshallow (K1 c) = K1 (c)
+instance GShallow (K1 i c) where
+  gshallow (K1 c) = (K1 c)
 
 instance GShallow f => GShallow (M1 i t f) where
-    gshallow (M1 x) = M1 (gshallow x)
+  gshallow (M1 a) = M1 (gshallow a)
 
 instance (GShallow l, GShallow r) => GShallow (l :+: r) where
-    gshallow (L1 x) = L1 (gshallow x)
-    gshallow (R1 x) = R1 (gshallow x)
+  gshallow (L1 a) = L1 (gshallow a)
+  gshallow (R1 a) = R1 (gshallow a)
 
 instance (GShallow l, GShallow r, Shallow (l ), Shallow (r )) => GShallow (l :*: r) where
-    gshallow (x :*: y) = gshallow (shallow x) :*: gshallow (shallow y)
+  gshallow (a :*: b) = gshallow (shallow a) :*: gshallow (shallow b)
+
