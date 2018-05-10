@@ -18,6 +18,11 @@ dependencies:
   - bytestring
   - random
   - memory
+  - mtl
+  - merkle-tree
+  - containers
+
+
 
 library:
   source-dirs: src
@@ -57,3 +62,27 @@ library:
 
   exposed-modules:
     - Auth
+    - Hash
+    - Authenticated
+
+tests:
+  auth-adt-tests:
+    main:                Driver.hs
+    source-dirs:         tests
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - auth-adt
+    - QuickCheck
+    - tasty
+    - tasty-hunit
+    - tasty-quickcheck
+    default-extensions:
+    - LambdaCase
+    - RecordWildCards
+    - OverloadedStrings
+    - NoImplicitPrelude
+    - FlexibleInstances
+

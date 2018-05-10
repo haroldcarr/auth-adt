@@ -1,11 +1,22 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE InstanceSigs #-}
 
-module Auth where
+module Auth
+    ( verifyProof
+    , Authable(..)
+    , Proof
+    , ProofElem(..)
+    , Side(..)
+    ) where
+
 
 import Protolude hiding (show, Hashable(..))
 import Prelude (Show(..))
@@ -13,100 +24,125 @@ import Unsafe
 
 import Crypto.Hash
 import Crypto.Hash.Algorithms
+import Control.Monad.Writer
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as BA
 
-newtype Hash = Hash { rawHash :: Digest SHA3_256 }
-  deriving (Eq, Ord, Show, BA.ByteArrayAccess)
+import GHC.Generics
 
--- sha256 hash
-sha256 :: ByteString -> Hash
-sha256 x = Hash (hash x :: Digest SHA3_256)
+import Hash
 
--- | Size of SHA256 output.
-hashSize :: Int
-hashSize = 32
+type Proof = [ProofElem]
 
--- | All zero hash
-emptyHash :: Hash
-emptyHash = Hash digest
-  where
-    digest :: Digest SHA3_256
-    digest = unsafeFromJust $ digestFromByteString (BS.replicate hashSize 0)
+data Side = L | R deriving (Show, Eq)
 
--- | Use Haskell's Show representation (converted to ByteString) for the
--- contents of the SHA hash.
-showHash :: Show a => a -> ByteString
-showHash = toS . show
+data ProofElem = ProofElem
+    { side :: Side
+    , leftHash :: Hash
+    , rightHash :: Hash
+    } deriving (Show, Eq)
 
-data Proof = Proof [Hash]
+type AuthTree a = (Hash, TreeGen a)
 
-class Hashable a => Authable a where
-  auth :: a -> Proof
-  unauth :: Proof -> a
+data TreeGen a
+    = BinGen (AuthTree a) (AuthTree a)
+    | TipGen (Maybe a)
+    deriving (Show, Eq)
 
--------------------------------------------------------------------------------
--- Hashing
--------------------------------------------------------------------------------
+-- | Verifier holds only the hash of the data structure
+-- It verifies inclusion of an element in the data structure
+verifyProof :: Hashable a => Hash -> Proof -> a -> Bool
+verifyProof _ [] _ = False
+verifyProof parentHash (proof:proofs) a
+    | parentHash /= toHash proof = False
+    | null proofs = case side proof of
+        L -> toHash a == leftHash proof
+        R -> toHash a == rightHash proof
+    | otherwise = case side proof of
+        L -> verifyProof (leftHash proof) proofs a
+        R -> verifyProof (rightHash proof) proofs a
 
-class Show a => Hashable a where
-  toHash :: a -> Hash
-  -- | SHA hash ( generic deriving )
-  default toHash :: (Generic a, GHashable' (Rep a)) => a -> Hash
-  toHash a = gtoHash (from a)
+class (Functor f) => Authable f where
+    -- | Generate membership proof
+    prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
+    default prove
+        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+        => f a
+        -> a
+        -> Proof
+    prove a item = reverse $ gProve [] (from1 a) item
 
-  -- | Covert to string
-  toBS :: a -> ByteString
-  toBS a = (prefix a) <> (showHash a)
+    prove' :: forall a. (Hashable a, Eq a) => Proof -> f a -> a -> Proof
+    default prove'
+        :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+        => Proof
+        -> f a
+        -> a
+        -> Proof
+    prove' path a item = gProve path (from1 a) item
 
-  -- | Prefix the hash input with custom data to distinguish unique types
-  prefix :: a -> ByteString
-  prefix = const mempty
 
-class GHashable a where
+    -- | Generate authenticated data structure generically
+    authenticate :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
+    default authenticate :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+        => f a
+        -> AuthTree a
+    authenticate f = gAuth (from1 f)
 
-class GHashable' f where
-  gtoHash :: f a -> Hash
-  gtoBS :: f a -> ByteString
+    proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
+    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash
+    proveHash a = gProveHash (from1 a)
 
-instance GHashable' U1 where
-  gtoHash _ = emptyHash
-  gtoBS _ = ""
+class GAuthable f where
+    gProve :: (Hashable a, Eq a) => Proof -> f a -> a -> Proof
+    gProveHash :: (Hashable a, Eq a) => f a -> Hash
+    gAuth :: (Hashable a, Eq a) => f a -> AuthTree a
 
-instance (Hashable c) => GHashable' (K1 i c) where
-  gtoHash (K1 a) = toHash a
-  gtoBS (K1 a) = prefix a <> toBS a
+instance (Authable f) => GAuthable (Rec1 f) where
+    gProve path (Rec1 f) = prove' path f
+    gProveHash (Rec1 f) = proveHash f
+    gAuth (Rec1 f) = authenticate f
 
-instance (GHashable' a) => GHashable' (M1 i c a) where
-  gtoHash (M1 a) = gtoHash a
-  gtoBS (M1 a) = gtoBS a
+instance GAuthable Par1 where
+    gProve path (Par1 a) item
+        | item == a = path
+        | otherwise = []
+    gProveHash (Par1 a) = toHash a
+    gAuth (Par1 a) = (toHash a, TipGen (Just a))
 
-instance (GHashable' a, GHashable' b) => GHashable' (a :+: b) where
-  gtoHash (L1 a) = gtoHash a
-  gtoHash (R1 a) = gtoHash a
+instance GAuthable U1 where
+    gProve _ _ _ = []
+    gProveHash _  = emptyHash
+    gAuth _ = (emptyHash, TipGen Nothing)
 
-  gtoBS (L1 a) = gtoBS a
-  gtoBS (R1 a) = gtoBS a
+instance (GAuthable a) => GAuthable (M1 i c a) where
+    gProve path (M1 a) = gProve path a
+    gProveHash (M1 a) = gProveHash a
+    gAuth (M1 a) = gAuth a
 
-instance (GHashable' a, GHashable' b) => GHashable' (a :*: b) where
-  gtoHash (a :*: b) = toHash (gtoBS a <> gtoBS b)
-  gtoBS (a :*: b) = gtoBS a <> gtoBS b
+instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
+    gProve path (L1 a) = gProve path a
+    gProve path (R1 a) = gProve path a
 
--- Instances
+    gProveHash (L1 a) = gProveHash a
+    gProveHash (R1 a) = gProveHash a
 
-instance Hashable ByteString where
-  toHash = Hash . hash
-  toBS = identity
+    gAuth (L1 a) = gAuth a
+    gAuth (R1 a) = gAuth a
 
-instance Hashable Int where
-  toHash = Hash . hash . showHash
+instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
+    gProve path (a :*: b) item
+        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item
+        ++  gProve (ProofElem R (gProveHash a) (gProveHash b) : path) b item
 
-instance Hashable Bool where
-  toHash = Hash . hash . showHash
+    gProveHash (a :*: b) =
+        toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 
-instance (Hashable a, Hashable b) => Hashable (a,b)
+    gAuth (a :*: b) =
+        (gProveHash (a :*: b)
+        , BinGen (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
+        )
 
-instance (Hashable a, Hashable b) => Hashable (Either a b) where
-  toHash (Left x) = toHash x
-  toHash (Right x) = toHash x
+instance Hashable ProofElem where
+    toHash (ProofElem s l r) = toHash (getHash l <> getHash r)
