@@ -31,7 +31,6 @@ import GHC.Generics
 import qualified Data.Sequence as Seq
 import Data.Sequence (ViewL(..))
 import Hash
-import qualified Auth
 
 
 -- | A sequence of shallow projections

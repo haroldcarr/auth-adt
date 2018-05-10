@@ -12,7 +12,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import System.Random
 
-import Auth
+import Membership
 import Hash
 
 ----------------------------

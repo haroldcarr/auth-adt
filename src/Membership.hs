@@ -9,7 +9,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Auth
+module Membership
     ( verifyProof
     , Authable(..)
     , Proof
