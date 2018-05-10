@@ -10,13 +10,13 @@
 {-# LANGUAGE InstanceSigs #-}
 
 module Auth
- {-   ( verifyProof-}
-    {-{-, fetch-}-}
-    {-, Authable(..)-}
-    {-, Proof-}
-    {-, ProofElem(..)-}
-    {-, Side(..)-}
-    where
+    ( verifyProof
+    , Authable(..)
+    , Proof
+    , ProofElem(..)
+    , Side(..)
+    ) where
+
 
 import Protolude hiding (show, Hashable(..))
 import Prelude (Show(..))
@@ -50,14 +50,8 @@ data TreeGen a
     | TipGen (Maybe a)
     deriving (Show, Eq)
 
--- | The verifier begins with the proof stream and
--- just the hash of the authenticated data structure.
--- It first compares this hash to the hash of the first
--- element of the proof stream and checks its side.
--- If L, the left hash of the first element will now become
--- the parent hash that compares with the hash of the second element
--- until it gets to the last element of the proof.
--- The verifier then ...
+-- | Verifier holds only the hash of the data structure
+-- It verifies inclusion of an element in the data structure
 verifyProof :: Hashable a => Hash -> Proof -> a -> Bool
 verifyProof _ [] _ = False
 verifyProof parentHash (proof:proofs) a
@@ -69,30 +63,8 @@ verifyProof parentHash (proof:proofs) a
         L -> verifyProof (leftHash proof) proofs a
         R -> verifyProof (rightHash proof) proofs a
 
-{-type AuthMP s a = Writer [s] a-}
-
-{-fetch :: Hashable a => [Side] -> AuthTree a -> Maybe a-}
-{-fetch idx authTree = do-}
-    {-tree <- unAuth authTree-}
-    {-case (idx, tree) of-}
-        {-([], Tip v) -> v-}
-        {-(L : idx', Bin l _) -> fetch idx' l-}
-        {-(R : idx', Bin _ r) -> fetch idx' r-}
-        {-_ -> Nothing-}
-
-{--- | unAuth is a private function-}
-{-unAuth :: Hashable a => AuthTree a -> Maybe (Tree a)-}
-{-unAuth (h, t@(Bin l r)) =-}
-    {-if h == toHash (getHash (fst l) <> getHash (fst r))-}
-        {-then Just t-}
-        {-else Nothing-}
-{-unAuth (h, t@(Tip valueM)) = do-}
-    {-v <- valueM-}
-    {-if h == toHash v-}
-        {-then Just t-}
-        {-else Nothing-}
-
 class (Functor f) => Authable f where
+    -- | Generate membership proof
     prove :: forall a. (Hashable a, Eq a) => f a -> a -> Proof
     default prove
         :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
@@ -110,14 +82,16 @@ class (Functor f) => Authable f where
         -> Proof
     prove' path a item = gProve path (from1 a) item
 
-    authenticate :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
-    default authenticate :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
+
+    -- | Generate authenticated data structure generically
+    auth :: forall a. (Hashable a, Eq a) => f a -> AuthTree a
+    default auth :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f)
         => f a
         -> AuthTree a
     authenticate f = gAuth (from1 f)
 
     proveHash :: forall a. (Hashable a, Eq a) => f a -> Hash
-    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash 
+    default proveHash :: forall a. (Hashable a, Eq a, GAuthable (Rep1 f), Generic1 f) => f a -> Hash
     proveHash a = gProveHash (from1 a)
 
 class GAuthable f where
@@ -127,7 +101,7 @@ class GAuthable f where
 
 instance (Authable f) => GAuthable (Rec1 f) where
     gProve path (Rec1 f) = prove' path f
-    gProveHash (Rec1 f) = proveHash f 
+    gProveHash (Rec1 f) = proveHash f
     gAuth (Rec1 f) = auth f
     gAuth (Rec1 f) = authenticate f
 
@@ -159,14 +133,14 @@ instance (GAuthable a, GAuthable b) => GAuthable (a :+: b) where
     gAuth (R1 a) = gAuth a
 
 instance (GAuthable a, GAuthable b) => GAuthable (a :*: b) where
-    gProve path (a :*: b) item 
-        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item 
+    gProve path (a :*: b) item
+        =   gProve (ProofElem L (gProveHash a) (gProveHash b) : path) a item
         ++  gProve (ProofElem R (gProveHash a) (gProveHash b) : path) b item
-    
-    gProveHash (a :*: b) = 
+
+    gProveHash (a :*: b) =
         toHash (getHash (gProveHash a) <> getHash (gProveHash b))
 
-    gAuth (a :*: b) = 
+    gAuth (a :*: b) =
         (gProveHash (a :*: b)
         , BinGen (gProveHash a, snd(gAuth a)) (gProveHash b, snd(gAuth b))
         )
