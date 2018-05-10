@@ -29,9 +29,13 @@ import Control.Monad.State
 import Control.Monad.Except
 import GHC.Generics
 import qualified Data.Sequence as Seq
-
+import Data.Sequence (ViewL(..))
 import Hash
 import qualified Auth
+
+
+-- |
+type ProofStream s = (Seq s)
 
 -- | Errors returned by runVerifier
 data AuthError = NoMoreProofElems | MismatchedHash Hash Hash deriving (Show)
@@ -46,13 +50,6 @@ instance Hashable a => Hashable (Auth a) where
   toHash (WithHash _ h) = h
   toHash (OnlyHash h) =h
 
-instance Auth.Authable Auth where
-  prove = undefined
-  prove' = undefined
-  proveHash = undefined
-  authenticate = undefined
-
-
 -- | Tag a value with its hash
 auth :: Hashable a => a -> Auth a
 auth a = WithHash a (toHash a)
@@ -64,20 +61,20 @@ unAuth :: (Shallow a, Hashable a) => Auth a -> AuthM a a
 unAuth (WithHash a h) = do
   modify (Seq.|> (shallow a))
   return a
-
-unAuth (OnlyHash t) = do
+unAuth (OnlyHash hash) = do
   stream <- get
   case Seq.viewl stream of
-    Seq.EmptyL  -> throwError NoMoreProofElems
-    x Seq.:< xs -> do
+    EmptyL        -> throwError NoMoreProofElems
+    shallow :< xs -> do
       put xs
-      if (toHash x) == t
-        then return x
-        else throwError $ MismatchedHash (toHash x) t
+      let shallowHash = toHash shallow
+      if shallowHash == hash
+        then return shallow
+        else throwError $ MismatchedHash shallowHash hash
 
 class Shallow f where
   shallow :: f -> f
-  {-default shallow :: (Generic1 f, GShallow (Rep1 f)) => f a -> f a-}
+  {-default shallow :: (Generic1 f, GShallow (Rep1 f)) => f -> f-}
   {-shallow = to1 . gshallow . from1-}
 
 instance Shallow (Auth a) where
@@ -85,12 +82,12 @@ instance Shallow (Auth a) where
   shallow h = h
 
 -- |
-runProver :: AuthM s a -> (Either AuthError a, Seq s)
+runProver :: AuthM s a -> (Either AuthError a, ProofStream s)
 runProver m = runState (runExceptT m) Seq.empty
 
 -- |
-runVerifier :: AuthM s a -> Seq s -> Either AuthError a
+runVerifier :: AuthM s a -> ProofStream s -> Either AuthError a
 runVerifier m proof = fst $ runState (runExceptT m) proof
 
 class GShallow f where
-    gshallow :: f -> f
+    gshallow :: f a -> f a
