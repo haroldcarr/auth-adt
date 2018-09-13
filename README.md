@@ -54,6 +54,8 @@ instance Shallow (Tree a) where
     shallow (Tip s) = Tip s
     shallow (Bin l r) = Bin (shallow l) (shallow r)
 
+data Bit = L | R
+
 fetch
   :: Hashable a
   => [Bit] -- ^ the path to find the element at
