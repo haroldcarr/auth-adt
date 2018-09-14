@@ -51,7 +51,7 @@ update idx authTree elem = do
     ([]      , Tip s  ) -> return $ Just (tip elem)
     (L : idx', Bin l r) -> do
       l' <- update idx' l elem
-      return $ fmap (\x -> bin x r) l'
+      return $ fmap (`bin` r) l'
     (R : idx', Bin l r) -> do
       r' <- update idx' r elem
       return $ fmap (bin l) r'
