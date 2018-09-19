@@ -1,14 +1,10 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,10 +23,8 @@ import Prelude (Show(..))
 import Unsafe
 
 import Crypto.Hash
-import Crypto.Hash.Algorithms
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
-import qualified Data.ByteArray.Encoding as BA
 
 import GHC.Generics
 
@@ -70,9 +64,9 @@ class Show a => Hashable a where
   default toHash :: (Generic a, GHashable' (Rep a)) => a -> Hash
   toHash a = gtoHash (from a)
 
-  -- | Covert to string
+  -- | Convert to string
   toBS :: a -> ByteString
-  toBS a = (prefix a) <> (showHash a)
+  toBS a = prefix a <> showHash a
 
   -- | Prefix the hash input with custom data to distinguish unique types
   prefix :: a -> ByteString
