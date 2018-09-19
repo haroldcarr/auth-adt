@@ -3,10 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module Membership
@@ -20,14 +16,6 @@ module Membership
 
 import Protolude hiding (show, Hashable(..))
 import Prelude (Show(..))
-import Unsafe
-
-import Crypto.Hash
-import Crypto.Hash.Algorithms
-import Control.Monad.Writer
-import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS
-import qualified Data.ByteArray.Encoding as BA
 
 import GHC.Generics
 
